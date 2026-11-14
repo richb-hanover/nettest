@@ -1,0 +1,11 @@
+{
+	"name": "nettest-about",
+	"private": true,
+	"version": "1.0.0",
+	"type": "module",
+	"description": "Serves ABOUT.md as a styled HTML page",
+	"main": "server.mjs",
+	"dependencies": {
+		"marked": "18.2.0"
+	}
+}

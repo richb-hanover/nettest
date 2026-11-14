@@ -60,3 +60,40 @@ services:
       PORT: "4173"
       LOG_LEVEL: "3"
     command: ["node", "build"]
+
+  about:
+    <<: *nettest
+    container_name: nettest-about
+    # Port 80 is privileged: start as root with only the capabilities needed
+    # to bind it and switch user; server.mjs drops to "nettest" right after bind.
+    user: root
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE, SETUID, SETGID]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      ABOUT_FILE: /srv/about/ABOUT.md
+      ABOUT_PORT: "80"
+      RUN_AS: nettest
+    # This directory is mounted read-only (a directory rather than the single
+    # file, so edits made by editors that replace the file still show up).
+    # Only ABOUT.md is ever served.
+    volumes:
+      - ./:/srv/about:ro
+    command: ["node", "/opt/about/server.mjs"]
+
+  mdns:
+    <<: *nettest
+    container_name: nettest-mdns
+    # Answers to <MDNS_NAME>.local and advertises the About page and Cutie
+    # as _http._tcp services. Only ONE mDNS responder may run per host:
+    # disable the host's own avahi-daemon first (see README.md).
+    user: root
+    cap_drop: [ALL]
+    cap_add: [SETUID, SETGID, CHOWN, DAC_OVERRIDE, FOWNER, KILL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      MDNS_NAME: nettest          # advertised as nettest.local
+      MDNS_INTERFACES: ""         # e.g. "eth0" to limit; empty = all
+      MDNS_ABOUT_PORT: "80"       # empty = don't advertise
+      MDNS_CUTIE_PORT: "4173"     # empty = don't advertise
+    command: ["/opt/mdns/start.sh"]

@@ -30,6 +30,15 @@ RUN npm ci \
  && npm prune --omit=dev
 
 # ---------------------------------------------------------------------------
+# Stage 1b: install the ABOUT.md web server's dependency (marked)
+# ---------------------------------------------------------------------------
+FROM node:${NODE_VERSION}-bookworm-slim AS about-build
+
+WORKDIR /opt/about
+COPY about/package.json about/server.mjs ./
+RUN npm install --omit=dev --no-audit --no-fund
+
+# ---------------------------------------------------------------------------
 # Stage 2: fetch the prebuilt (static) Crusader binary for this architecture
 # ---------------------------------------------------------------------------
 FROM ubuntu:${UBUNTU_VERSION} AS crusader-fetch
@@ -73,6 +82,7 @@ RUN apt-get update \
       iperf3 \
       ca-certificates \
       tini \
+      avahi-daemon \
  && rm -rf /var/lib/apt/lists/*
 
 # Node.js runtime for Cutie, copied from the official image used to build it
@@ -85,6 +95,12 @@ COPY --from=crusader-fetch /usr/local/bin/crusader /usr/local/bin/crusader
 COPY --from=cutie-build /src/cutie/build        /opt/cutie/build
 COPY --from=cutie-build /src/cutie/node_modules /opt/cutie/node_modules
 COPY --from=cutie-build /src/cutie/package.json /opt/cutie/package.json
+
+# ABOUT.md web server (port 80); ABOUT.md itself is mounted at /srv/about at run time
+COPY --from=about-build /opt/about /opt/about
+
+# mDNS responder start script (advertises <MDNS_NAME>.local via avahi-daemon)
+COPY --chmod=0755 mdns/start.sh /opt/mdns/start.sh
 
 # Run everything as an unprivileged user; none of the default ports need root.
 RUN useradd --system --create-home --home-dir /home/nettest --shell /usr/sbin/nologin nettest
@@ -102,7 +118,8 @@ ENV NODE_ENV=production \
 #   5201/tcp   iperf3 (TCP and UDP)
 #   35481/tcp+udp  Crusader server
 #   4173/tcp   Cutie web UI (WebRTC uses ephemeral UDP ports)
-EXPOSE 12865 5001 5201 5201/udp 35481 35481/udp 4173
+#   80/tcp     ABOUT.md page
+EXPOSE 12865 5001 5201 5201/udp 35481 35481/udp 4173 80
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
 # Default command; docker-compose.yml overrides this for each service.
