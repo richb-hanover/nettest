@@ -1,0 +1,62 @@
+# nettest - network test servers for Ubuntu 26.04 / Armbian 26.8
+#
+# One image, one container per server. All services use host networking:
+# netperf data connections, iperf3 UDP tests, Crusader's UDP latency probes
+# and Cutie's WebRTC data channel all use ports that cannot be listed ahead
+# of time, so publishing individual ports would break them.
+#
+#   docker compose up -d --build
+#
+# See README.md for details.
+
+x-nettest: &nettest
+  image: nettest:latest
+  build:
+    context: .
+    args:
+      CUTIE_REF: main            # Cutie branch or tag to build
+      CRUSADER_VERSION: v0.3.2   # Crusader release tag
+  network_mode: host
+  restart: unless-stopped
+  init: false                    # tini is already the image's ENTRYPOINT
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  netperf:
+    <<: *nettest
+    container_name: nettest-netperf
+    # -D: stay in the foreground (don't daemonize)
+    command: ["netserver", "-D", "-p", "12865"]
+
+  iperf:
+    <<: *nettest
+    container_name: nettest-iperf
+    # iperf v2, TCP server on port 5001
+    command: ["iperf", "-s", "-p", "5001"]
+
+  iperf3:
+    <<: *nettest
+    container_name: nettest-iperf3
+    # iperf3 server on port 5201 (handles both TCP and UDP tests)
+    command: ["iperf3", "-s", "-p", "5201"]
+
+  crusader:
+    <<: *nettest
+    container_name: nettest-crusader
+    # TCP + UDP port 35481
+    command: ["crusader", "serve", "--port", "35481"]
+
+  cutie:
+    <<: *nettest
+    container_name: nettest-cutie
+    working_dir: /opt/cutie
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "4173"
+      LOG_LEVEL: "3"
+    command: ["node", "build"]

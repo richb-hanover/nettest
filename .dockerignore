@@ -1,0 +1,3 @@
+# Everything is fetched from GitHub or apt during the build;
+# nothing in this directory needs to be sent to the Docker daemon.
+*
