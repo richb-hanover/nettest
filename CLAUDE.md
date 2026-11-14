@@ -105,6 +105,7 @@ docker compose logs -f <service>
 docker compose down
 sh -n mdns/start.sh                   # syntax-check the mDNS script
 DOCKERHUB_USER=x PUSH=0 ./publish.sh  # multi-arch test build, no push
+NO_CACHE=1 ./publish.sh               # fresh rebuild (latest Cutie + Ubuntu packages) + push
 ./publish.sh                          # build + push to Docker Hub (only when asked)
 ```
 

@@ -1,8 +1,13 @@
 # nettest-portable: a network test server in Docker
 
 This Docker setup turns a small Linux board (Armbian 26.8 / Ubuntu 26.04, arm64)
-into a network test server. You can put the box anywhere on a network and test
-against it. It runs:
+into a network test server.
+You can put the box anywhere on a network and test
+against it. 
+Because it is directly connected to your local
+network, you avoid the latency, packet loss,
+and other vagaries of the wider internet.
+It provides these services:
 
 | Server | Version | Port(s) | What it's for |
 | --- | --- | --- | --- |
@@ -16,8 +21,20 @@ against it. It runs:
 
 All seven run from a single image, **`nettest-portable`**, each in its own container.
 You can build the image on the board or pull it from Docker Hub
-(`<user>/nettest-portable`).
+(`richbhanover/nettest-portable`).
 That way each server has its own logs and restarts independently.
+
+## Installation
+
+Start with a small Linux computer (Raspberry Pi, Odroid,
+etc.) with a fresh OS installation.
+Then run these commands:
+
+```bash
+git clone https://github.com/richb-hanover/nettest-portable.git
+cd nettest-portable
+docker compose pull && docker compose up -d
+```
 
 ## Files
 
@@ -58,7 +75,7 @@ unprivileged `nettest` user as soon as the port is open.
 
 ## mDNS: `nettest.local`
 
-The `mdns` service runs `avahi-daemon`, so the box answers to **`nettest.local`**
+The `mdns` service runs `avahi-daemon`, so the box answers to **`nettest.local`** (NOT `nettest-portable.local`)
 wherever it's plugged in, even when DHCP gives it a different address. It also
 advertises two Bonjour/DNS-SD `_http._tcp` services: *"Network test box on
 nettest"* (the About page, port 80) and *"Cutie on nettest"* (port 4173). These
@@ -140,7 +157,7 @@ build it locally.
 
 ```bash
 cd nettest-portable
-cp .env.example .env      # set NETTEST_IMAGE=<user>/nettest-portable:latest
+cp .env.example .env      # set NETTEST_IMAGE=<richbhanover/nettest-portable:latest
 docker compose pull
 docker compose up -d
 ```
@@ -246,6 +263,9 @@ cp .env.example .env                       # set DOCKERHUB_USER
   first time, because the default builder can't build several platforms at once.
 - `PLATFORMS=linux/arm64 ./publish.sh` builds only some platforms.
   `PUSH=0 ./publish.sh` does a test build without pushing.
+- `NO_CACHE=1 ./publish.sh` rebuilds everything from scratch, picking up the
+  latest Cutie commit and Ubuntu package updates. Without it, cached layers
+  (including the Cutie checkout) are reused.
 - `CUTIE_REF` and `CRUSADER_VERSION` can be set the same way to publish
   another Cutie branch or Crusader release.
 - To update a board after publishing: `docker compose pull && docker compose up -d`.
@@ -308,6 +328,8 @@ fix is to allow all traffic from your test LAN:
   a name conflict, it says `nettest-2.local` or similar: another device on the
   network already uses that name, so change `MDNS_NAME`. Wi-Fi access points
   with "multicast filtering" or client isolation can also block mDNS.
+  The log line *"No NSS support for mDNS detected"* is harmless: it's about
+  the container resolving `.local` names itself, which it never needs to do.
 
 ## What was verified
 

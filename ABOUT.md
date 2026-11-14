@@ -1,38 +1,57 @@
-# About nettest.local
+# About nettest-portable
 
 This computer hosts a number of utilities
 that are useful for local network testing.
-See the list of test servers below.
+Because it is directly connected to your local
+network, you avoid the latency, packet loss,
+and other vagaries of the wider internet.
+See the list of test services below.
 
-To create the **nettet**, build a small Linux computer
+_Version 0.1.0 - 14Nov2026_
+
+## To build nettest-portable
+
+Build a small Linux computer
 with a recent OS and install Docker.
-Then use 
+Then run these commands:
 
-To use it:
+```bash
+git clone https://github.com/richb-hanover/nettest-portable.git
+cd nettest-portable
+docker compose pull && docker compose up -d
+```
 
-1. Connect the **nettest** computer to an Ethernet port
+## Using nettest-portable
+
+1. After it is built, connect the **nettest-portable**
+  computer to an Ethernet port
   "near the center" of your network and power it up.
 2. It advertises the name `nettest.local` for all tests.
-3. You can see this page at [http://nettest.local](http://nettest.local)
+3. Connect to this page
+   [http://nettest.local](http://nettest.local)
+   to see if it's working.
 
-## Test servers available
+## Test services available
+
+**nettest-portable** runs several servers for testing:
 
 * **[Cutie Network Quality Test](https://github.com/richb-hanover/Cutie-Network-Quality-Test)** 
-  Browse to [http://nettester.local:4173](http://nettester.local:4173)
+  Browse to [http://nettest.local:4173](http://nettest.local:4173)
 
 * **[Crusader Throughput and Latency Tester](https://github.com/Zoxc/crusader)** 
   Download the client (GUI or command-line) from the
-  [Releases tab]([https://github.com/Zoxc/crusader](https://github.com/Zoxc/crusader/releases/tag/v0.3.2)), then test against
+  [Releases tab](https://github.com/Zoxc/crusader/releases/tag/v0.3.2), then test against
   `nettest.local`
 
 * **[iperf (v2)](https://iperf.fr/iperf-doc.php#doc)**
   ... and ...
   **[iperf3](https://iperf.fr/iperf-doc.php#3doc)**
   ... and ... 
-  **[netperf](hewlettpackard.github.io/netperf)**
-  are "speed test" programs to check speeds between hosts.
+  **[netperf](https://hewlettpackard.github.io/netperf/)**
+  are "speed test" programs that check speeds between hosts.
   Although they have the same spirit,
-  they have evolved separately and are **not** compatible.
+  they have evolved separately,
+  have very different options, and are **not** compatible.
   Different tools specify different backend servers.
   This docker container hosts them all.
   

@@ -13,6 +13,8 @@
 #   CUTIE_REF       Cutie branch/tag to build   (default: main)
 #   CRUSADER_VERSION Crusader release tag       (default: v0.3.2)
 #   PUSH            set to 0 to build without pushing (test run)
+#   NO_CACHE        set to 1 to rebuild everything (fresh Cutie checkout,
+#                   latest Ubuntu packages) instead of reusing cached layers
 set -eu
 
 cd "$(dirname "$0")"
@@ -31,6 +33,7 @@ PLATFORMS="${PLATFORMS:-linux/arm64,linux/amd64}"
 CUTIE_REF="${CUTIE_REF:-main}"
 CRUSADER_VERSION="${CRUSADER_VERSION:-v0.3.2}"
 PUSH="${PUSH:-1}"
+NO_CACHE="${NO_CACHE:-0}"
 
 REPO="docker.io/${DOCKERHUB_USER}/${IMAGE_NAME}"
 VERSION="$(date -u +%Y%m%d)"
@@ -50,6 +53,11 @@ else
 	echo "Test build of ${PLATFORMS} (not pushing)"
 fi
 
+cache=""
+if [ "$NO_CACHE" = 1 ]; then
+	cache="--no-cache --pull"
+fi
+
 # shellcheck disable=SC2086
 docker buildx build \
 	--builder "$BUILDER" \
@@ -60,6 +68,7 @@ docker buildx build \
 	--tag "${REPO}:latest" \
 	--tag "${REPO}:${VERSION}" \
 	$output \
+	$cache \
 	.
 
 if [ "$PUSH" = 1 ]; then
