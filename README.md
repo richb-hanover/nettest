@@ -1,4 +1,4 @@
-# nettest: a network test server in Docker
+# nettest-portable: a network test server in Docker
 
 This Docker setup turns a small Linux board (Armbian 26.8 / Ubuntu 26.04, arm64)
 into a network test server. You can put the box anywhere on a network and test
@@ -14,7 +14,9 @@ against it. It runs:
 | **About page** | — | 80/tcp | Shows `ABOUT.md` as a formatted web page |
 | **mDNS** (avahi-daemon) | 0.8 | 5353/udp | Advertises `nettest.local` and the web pages via Bonjour |
 
-All seven run from a single image (`nettest:latest`), each in its own container.
+All seven run from a single image, **`nettest-portable`**, each in its own container.
+You can build the image on the board or pull it from Docker Hub
+(`<user>/nettest-portable`).
 That way each server has its own logs and restarts independently.
 
 ## Files
@@ -26,6 +28,8 @@ That way each server has its own logs and restarts independently.
 | `about/server.mjs`, `about/package.json` | The port 80 server that renders `ABOUT.md` |
 | `mdns/start.sh` | Writes the Avahi config from environment variables and starts `avahi-daemon` |
 | `ABOUT.md` | *(you create this)* The content shown on port 80 |
+| `publish.sh` | Builds the image for arm64 + amd64 and pushes it to Docker Hub |
+| `.env.example` | Template for `.env` (`DOCKERHUB_USER`, `NETTEST_IMAGE`) |
 | `.dockerignore` | Sends only `about/` and `mdns/` to the build (everything else is fetched from GitHub/apt) |
 
 ## The About page (port 80)
@@ -127,17 +131,33 @@ sudo usermod -aG docker $USER
 
 Check it with `docker compose version`.
 
-## 2. Build and start
+## 2. Start it
 
-Copy this directory to the board, then:
+Copy this directory to the board. Then either pull the published image or
+build it locally.
+
+**Option A: pull from Docker Hub** (fast, no build on the board):
 
 ```bash
-cd nettest
+cd nettest-portable
+cp .env.example .env      # set NETTEST_IMAGE=<user>/nettest-portable:latest
+docker compose pull
+docker compose up -d
+```
+
+On the board you only need `docker-compose.yml`, `.env` and your `ABOUT.md`
+(the About page reads it from this directory).
+
+**Option B: build on the board:**
+
+```bash
+cd nettest-portable
 docker compose up -d --build
 ```
 
 The first build takes a while on a small ARM board (Cutie's `npm ci` and
-`npm run build` take the most time). Later builds are cached.
+`npm run build` take the most time). Later builds are cached. Without `.env`,
+the locally built image is named `nettest-portable:latest`.
 
 Because of `restart: unless-stopped`, the containers come back up after a
 reboot as long as the Docker service is enabled (`sudo systemctl enable docker`,
@@ -207,6 +227,28 @@ docker compose up -d iperf3 crusader cutie
 ```
 
 or comment the service out of `docker-compose.yml`.
+
+## Publishing to Docker Hub
+
+`publish.sh` builds the image for **linux/arm64 and linux/amd64** in one go and
+pushes it as `<DOCKERHUB_USER>/nettest-portable`, tagged both `latest` and
+with the build date (e.g. `20261114`):
+
+```bash
+docker login                               # once
+cp .env.example .env                       # set DOCKERHUB_USER
+./publish.sh
+```
+
+- Run it on a fast machine (e.g. a Mac with Docker Desktop). The non-native
+  architecture is built under emulation, which is slow but works.
+- It creates a `docker-container` buildx builder named `nettest-builder` the
+  first time, because the default builder can't build several platforms at once.
+- `PLATFORMS=linux/arm64 ./publish.sh` builds only some platforms.
+  `PUSH=0 ./publish.sh` does a test build without pushing.
+- `CUTIE_REF` and `CRUSADER_VERSION` can be set the same way to publish
+  another Cutie branch or Crusader release.
+- To update a board after publishing: `docker compose pull && docker compose up -d`.
 
 ## Updating
 

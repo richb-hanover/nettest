@@ -1,4 +1,4 @@
-# nettest - network test servers for Ubuntu 26.04 / Armbian 26.8
+# nettest-portable - network test servers for Ubuntu 26.04 / Armbian 26.8
 #
 # One image, one container per server. All services use host networking:
 # netperf data connections, iperf3 UDP tests, Crusader's UDP latency probes
@@ -9,8 +9,14 @@
 #
 # See README.md for details.
 
+# Fixed project name, so it doesn't depend on the name of this directory
+name: nettest-portable
+
 x-nettest: &nettest
-  image: nettest:latest
+  # Set NETTEST_IMAGE in .env to use the published Docker Hub image,
+  # e.g. NETTEST_IMAGE=<dockerhub-user>/nettest-portable:latest
+  # ("docker compose pull" then fetches it instead of building locally).
+  image: ${NETTEST_IMAGE:-nettest-portable:latest}
   build:
     context: .
     args:

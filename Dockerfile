@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 #
-# nettest - a network test server image containing:
+# nettest-portable - a network test server image containing:
 #   netperf (netserver), iperf (v2), iperf3, Crusader server, and Cutie.
 #
 # Target: Ubuntu 26.04 / Armbian 26.8 (arm64), but builds for amd64 and armhf too.
@@ -41,7 +41,10 @@ RUN npm install --omit=dev --no-audit --no-fund
 # ---------------------------------------------------------------------------
 # Stage 2: fetch the prebuilt (static) Crusader binary for this architecture
 # ---------------------------------------------------------------------------
-FROM ubuntu:${UBUNTU_VERSION} AS crusader-fetch
+# Runs natively on the build machine (BUILDPLATFORM) even for cross-builds:
+# it only downloads a static binary for TARGETARCH, and avoids QEMU, which
+# can't run Ubuntu 26.04's tar ("Function not implemented").
+FROM --platform=$BUILDPLATFORM ubuntu:${UBUNTU_VERSION} AS crusader-fetch
 
 ARG CRUSADER_VERSION=v0.3.2
 ARG TARGETARCH
@@ -68,9 +71,16 @@ RUN set -eux; \
 FROM ubuntu:${UBUNTU_VERSION}
 
 ARG NODE_VERSION=24
+ARG IMAGE_VERSION=dev
+ARG CUTIE_REF=main
+ARG CRUSADER_VERSION=v0.3.2
 
-LABEL org.opencontainers.image.title="nettest" \
-      org.opencontainers.image.description="netperf, iperf, iperf3, Crusader server and Cutie network test servers"
+# Published to Docker Hub as <user>/nettest-portable (see publish.sh)
+LABEL org.opencontainers.image.title="nettest-portable" \
+      org.opencontainers.image.description="Portable network test server: netperf, iperf, iperf3, Crusader, Cutie, an ABOUT.md page and mDNS (nettest.local)" \
+      org.opencontainers.image.version="${IMAGE_VERSION}" \
+      io.nettest.cutie-ref="${CUTIE_REF}" \
+      io.nettest.crusader-version="${CRUSADER_VERSION}"
 
 # netperf lives in "multiverse" on some Ubuntu releases; the Ubuntu base image
 # enables all components, so a plain apt-get install works.
