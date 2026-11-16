@@ -1,6 +1,7 @@
-# Everything except the about/ server is fetched from GitHub or apt during
-# the build, so send only that directory to the Docker daemon.
+# Everything else is fetched from GitHub or apt during the build, so send
+# only these files to the Docker daemon.
 *
+!ABOUT.md
 !about/package.json
 !about/server.mjs
 !mdns/start.sh

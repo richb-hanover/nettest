@@ -5,6 +5,9 @@
 # and Cutie's WebRTC data channel all use ports that cannot be listed ahead
 # of time, so publishing individual ports would break them.
 #
+# On the board, this file is all you need:
+#   docker compose pull && docker compose up -d
+# To build the image locally instead (in a git checkout):
 #   docker compose up -d --build
 #
 # See README.md for details.
@@ -13,10 +16,10 @@
 name: nettest-portable
 
 x-nettest: &nettest
-  # Set NETTEST_IMAGE in .env to use the published Docker Hub image,
-  # e.g. NETTEST_IMAGE=<dockerhub-user>/nettest-portable:latest
-  # ("docker compose pull" then fetches it instead of building locally).
-  image: ${NETTEST_IMAGE:-nettest-portable:latest}
+  # The published Docker Hub image. Set NETTEST_IMAGE (in .env) to use
+  # another one. "build:" is only used by "docker compose build" in a git
+  # checkout; "docker compose pull" just downloads the image.
+  image: ${NETTEST_IMAGE:-richbhanover/nettest-portable:latest}
   build:
     context: .
     args:
@@ -76,15 +79,10 @@ services:
     cap_drop: [ALL]
     cap_add: [NET_BIND_SERVICE, SETUID, SETGID]
     security_opt: ["no-new-privileges:true"]
+    # Serves the ABOUT.md that is built into the image.
     environment:
-      ABOUT_FILE: /srv/about/ABOUT.md
       ABOUT_PORT: "80"
       RUN_AS: nettest
-    # This directory is mounted read-only (a directory rather than the single
-    # file, so edits made by editors that replace the file still show up).
-    # Only ABOUT.md is ever served.
-    volumes:
-      - ./:/srv/about:ro
     command: ["node", "/opt/about/server.mjs"]
 
   mdns:

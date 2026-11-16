@@ -30,13 +30,14 @@ RUN npm ci \
  && npm prune --omit=dev
 
 # ---------------------------------------------------------------------------
-# Stage 1b: install the ABOUT.md web server's dependency (marked)
+# Stage 1b: the ABOUT.md web server, its dependency (marked) and ABOUT.md
 # ---------------------------------------------------------------------------
 FROM node:${NODE_VERSION}-bookworm-slim AS about-build
 
 WORKDIR /opt/about
 COPY about/package.json about/server.mjs ./
 RUN npm install --omit=dev --no-audit --no-fund
+COPY ABOUT.md ./
 
 # ---------------------------------------------------------------------------
 # Stage 2: fetch the prebuilt (static) Crusader binary for this architecture
@@ -106,7 +107,7 @@ COPY --from=cutie-build /src/cutie/build        /opt/cutie/build
 COPY --from=cutie-build /src/cutie/node_modules /opt/cutie/node_modules
 COPY --from=cutie-build /src/cutie/package.json /opt/cutie/package.json
 
-# ABOUT.md web server (port 80); ABOUT.md itself is mounted at /srv/about at run time
+# ABOUT.md web server (port 80) and the ABOUT.md it serves (/opt/about/ABOUT.md)
 COPY --from=about-build /opt/about /opt/about
 
 # mDNS responder start script (advertises <MDNS_NAME>.local via avahi-daemon)

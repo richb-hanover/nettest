@@ -16,8 +16,14 @@ with a recent OS and install Docker.
 Then run these commands:
 
 ```bash
-git clone https://github.com/richb-hanover/nettest-portable.git
-cd nettest-portable
+mkdir nettest-portable && cd nettest-portable
+curl -fsSLO https://raw.githubusercontent.com/richb-hanover/nettest-portable/main/docker-compose.yml
+docker compose pull && docker compose up -d
+```
+
+To update to the latest release later, run this in the same directory:
+
+```bash
 docker compose pull && docker compose up -d
 ```
 

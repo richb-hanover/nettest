@@ -1,20 +1,22 @@
 // Tiny HTTP server that renders ABOUT.md as a styled HTML page.
 //
-// The file is re-read on every request, so edits appear on the next reload.
+// ABOUT.md is built into the image (/opt/about/ABOUT.md); it is read and
+// rendered once at startup. If it can't be read the server exits, so the
+// problem shows up in "docker compose ps/logs" instead of as a broken page.
 // If started as root (needed to bind port 80), the process drops to an
 // unprivileged user as soon as the socket is listening.
 //
 // Environment:
-//   ABOUT_FILE  path to the Markdown file   (default /srv/about/ABOUT.md)
+//   ABOUT_FILE  path to the Markdown file   (default /opt/about/ABOUT.md)
 //   ABOUT_PORT  TCP port to listen on       (default 80)
 //   ABOUT_HOST  address to listen on        (default 0.0.0.0)
 //   RUN_AS      user to switch to after bind (default nettest)
 
 import http from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { marked } from 'marked';
 
-const FILE = process.env.ABOUT_FILE || '/srv/about/ABOUT.md';
+const FILE = process.env.ABOUT_FILE || '/opt/about/ABOUT.md';
 const PORT = Number(process.env.ABOUT_PORT || 80);
 const HOST = process.env.ABOUT_HOST || '0.0.0.0';
 const RUN_AS = process.env.RUN_AS || 'nettest';
@@ -91,7 +93,16 @@ ${bodyHtml}
 `;
 }
 
-const server = http.createServer(async (req, res) => {
+let MD, HTML;
+try {
+	MD = readFileSync(FILE, 'utf8');
+} catch (err) {
+	console.error(`Cannot read ${FILE}: ${err.message}`);
+	process.exit(1);
+}
+HTML = page(titleFrom(MD), marked.parse(MD));
+
+const server = http.createServer((req, res) => {
 	const url = new URL(req.url, 'http://localhost');
 
 	if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -99,35 +110,21 @@ const server = http.createServer(async (req, res) => {
 		return;
 	}
 
-	if (url.pathname !== '/' && url.pathname !== '/index.html' && url.pathname !== '/ABOUT.md') {
+	let body, type;
+	if (url.pathname === '/' || url.pathname === '/index.html') {
+		body = HTML;
+		type = 'text/html; charset=utf-8';
+	} else if (url.pathname === '/ABOUT.md') {
+		// raw Markdown source
+		body = MD;
+		type = 'text/markdown; charset=utf-8';
+	} else {
 		res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Not found\n');
 		return;
 	}
 
-	let md;
-	try {
-		md = await readFile(FILE, 'utf8');
-	} catch (err) {
-		console.error(`Cannot read ${FILE}: ${err.message}`);
-		const html = page(
-			'About',
-			`<h1>About</h1><p>No <code>ABOUT.md</code> found yet. Create it next to <code>docker-compose.yml</code> and reload this page.</p>`
-		);
-		res.writeHead(503, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
-		res.end(req.method === 'HEAD' ? undefined : html);
-		return;
-	}
-
-	// /ABOUT.md returns the raw Markdown source
-	if (url.pathname === '/ABOUT.md') {
-		res.writeHead(200, { 'Content-Type': 'text/markdown; charset=utf-8', 'Cache-Control': 'no-cache' });
-		res.end(req.method === 'HEAD' ? undefined : md);
-		return;
-	}
-
-	const html = page(titleFrom(md), marked.parse(md));
-	res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
-	res.end(req.method === 'HEAD' ? undefined : html);
+	res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-cache' });
+	res.end(req.method === 'HEAD' ? undefined : body);
 });
 
 server.listen(PORT, HOST, () => {

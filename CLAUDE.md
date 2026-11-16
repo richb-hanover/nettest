@@ -30,19 +30,23 @@ making changes.
    (`publish.sh`). The Docker Hub user name is set by `DOCKERHUB_USER` in `.env`.
 6. **Documentation and all files live in this directory.** Keep `README.md` up
    to date with every change.
+7. **No git checkout on the board:** `ABOUT.md` is built into the image, and a
+   board needs only `docker-compose.yml`.
+8. **Versioning:** the release version and date live in `ABOUT.md`
+   (`_Version 0.1.0 - 14Nov2026_`); every release bumps it by 0.0.1.
 
 ## Layout
 
 | Path | Purpose |
 | --- | --- |
-| `Dockerfile` | Multi-stage build: `cutie-build` (Node, builds Cutie from GitHub), `about-build` (installs `marked`), `crusader-fetch` (downloads the binary for `TARGETARCH`), then an `ubuntu:26.04` runtime |
-| `docker-compose.yml` | One shared image (`${NETTEST_IMAGE:-nettest-portable:latest}`), one service per server, defined via the `x-nettest` YAML anchor |
-| `about/server.mjs`, `about/package.json` | Port 80 server that renders `ABOUT.md` with `marked` |
+| `Dockerfile` | Multi-stage build: `cutie-build` (Node, builds Cutie from GitHub), `about-build` (installs `marked`, copies `ABOUT.md`), `crusader-fetch` (downloads the binary for `TARGETARCH`), then an `ubuntu:26.04` runtime |
+| `docker-compose.yml` | One shared image (`${NETTEST_IMAGE:-richbhanover/nettest-portable:latest}`), one service per server, defined via the `x-nettest` YAML anchor. The only file a board needs |
+| `about/server.mjs`, `about/package.json` | Port 80 server that renders the built-in `/opt/about/ABOUT.md` with `marked` |
 | `mdns/start.sh` | Generates `/etc/avahi/avahi-daemon.conf` + `_http._tcp` service files from env vars, then execs `avahi-daemon` |
-| `ABOUT.md` | **Owned by the user.** Content for the About page. Do not overwrite or rewrite it unless asked. |
-| `publish.sh` | Multi-arch (`linux/arm64,linux/amd64`) `buildx` build, pushed to `docker.io/$DOCKERHUB_USER/nettest-portable` with `latest` + `YYYYMMDD` tags; `PUSH=0` = test build |
-| `.env.example` | Template for `.env`: `DOCKERHUB_USER`, `NETTEST_IMAGE` |
-| `.dockerignore` | Allow-list: only `about/package.json`, `about/server.mjs`, `mdns/start.sh` go to the build. New files copied by the Dockerfile must be added here. |
+| `ABOUT.md` | **Owned by the user.** Content for the About page, built into the image. Holds the release version line `_Version X.Y.Z - DMonYYYY_` (only `publish.sh` changes it). Do not otherwise rewrite it unless asked. |
+| `publish.sh` | Bumps the patch version + date in `ABOUT.md` (restored if the build fails), then multi-arch (`linux/arm64,linux/amd64`) `buildx` build, pushed to `docker.io/$DOCKERHUB_USER/nettest-portable` with `latest` + `X.Y.Z` tags; `PUSH=0` = test build, no bump |
+| `.env.example` | Template for `.env`: `DOCKERHUB_USER`, `NETTEST_IMAGE` (both optional on a board) |
+| `.dockerignore` | Allow-list: only `ABOUT.md`, `about/package.json`, `about/server.mjs`, `mdns/start.sh` go to the build. New files copied by the Dockerfile must be added here. |
 | `README.md` | User documentation (install, run, ports, configuration, firewall, troubleshooting, what was verified) |
 
 ## Services and ports
@@ -81,11 +85,14 @@ making changes.
   `FROM --platform=$BUILDPLATFORM` so it runs natively during cross-builds:
   under QEMU, Ubuntu 26.04's `tar` fails with "Function not implemented". Asset names: `Crusader-Linux-ARM-64-bit`,
   `Crusader-Linux-ARM-32-bit`, `Crusader-Linux-X86-64-bit`.
-- **About page:** `ABOUT.md` is re-read on every request, so edits show up
-  without a restart. This directory is mounted read-only at `/srv/about` (a
-  directory mount, so editors that replace the file still work). Only `/`,
+- **Deployment needs no git checkout:** a board fetches `docker-compose.yml`
+  (curl from GitHub raw) and runs `docker compose pull && docker compose up -d`.
+  Don't reintroduce bind mounts of repo files.
+- **About page:** `ABOUT.md` is always built into the image at
+  `/opt/about/ABOUT.md` (no volume mount, no optional/override path). It is read
+  and rendered once at startup; if it can't be read the server exits. Only `/`,
   `/index.html` (rendered HTML) and `/ABOUT.md` (raw) are served; everything
-  else returns 404. If the file is missing, a 503 page explains it. Styling is
+  else returns 404. Styling is
   inline GitHub-like CSS with light/dark support and a responsive layout; the
   page `<title>` comes from the first `# Heading`.
 - **mDNS:** configured by `MDNS_NAME` (default `nettest`), `MDNS_INTERFACES`,
@@ -97,16 +104,16 @@ making changes.
 
 ```bash
 docker compose config -q              # validate the compose file
-docker compose build                  # build nettest-portable:latest (or $NETTEST_IMAGE)
+docker compose build                  # build $NETTEST_IMAGE (default richbhanover/nettest-portable:latest)
 docker compose up -d --build          # build and start everything
 docker compose up -d about mdns       # start selected services
 docker compose ps
 docker compose logs -f <service>
 docker compose down
 sh -n mdns/start.sh                   # syntax-check the mDNS script
-DOCKERHUB_USER=x PUSH=0 ./publish.sh  # multi-arch test build, no push
+DOCKERHUB_USER=x PUSH=0 ./publish.sh  # multi-arch test build, no push, no version bump
 NO_CACHE=1 ./publish.sh               # fresh rebuild (latest Cutie + Ubuntu packages) + push
-./publish.sh                          # build + push to Docker Hub (only when asked)
+./publish.sh                          # bump version in ABOUT.md, build + push (only when asked)
 ```
 
 ## Testing changes
@@ -129,9 +136,9 @@ Notes:
 - Development happens on an Apple Silicon Mac with Docker Desktop (arm64). Its
   "host" network is the Docker VM, not the Mac's LAN, so multicast mDNS and
   browser-to-Cutie WebRTC can only be fully verified on the real board.
-- When testing the About page, don't create `ABOUT.md` in this directory (it
+- When testing the About page with other content, don't edit `ABOUT.md` (it
   belongs to the user); use a sample file in a scratch directory and a
-  temporary `docker run ... -v <dir>:/srv/about:ro`.
+  temporary `docker run ... -v <file>:/opt/about/ABOUT.md:ro`.
 - Bind-mounted file edits can take a moment to sync under Docker Desktop on macOS.
 - After testing, `docker compose down` and remove any temporary containers.
 

@@ -2,6 +2,14 @@
 # Build the nettest-portable image for several CPU architectures and push it to
 # Docker Hub as <DOCKERHUB_USER>/nettest-portable.
 #
+# Versioning: the release version lives in ABOUT.md, on a line like
+#   _Version 0.1.0 - 14Nov2026_
+# Every push bumps the last number by one (0.1.0 -> 0.1.1) and sets today's
+# date, then builds (ABOUT.md is baked into the image) and tags the image
+# with both "latest" and the version. If the build fails, ABOUT.md is put
+# back as it was. Commit the updated ABOUT.md afterwards.
+# A test build (PUSH=0) doesn't change the version.
+#
 # Usage:
 #   docker login                       # once
 #   DOCKERHUB_USER=yourname ./publish.sh
@@ -36,7 +44,36 @@ PUSH="${PUSH:-1}"
 NO_CACHE="${NO_CACHE:-0}"
 
 REPO="docker.io/${DOCKERHUB_USER}/${IMAGE_NAME}"
-VERSION="$(date -u +%Y%m%d)"
+
+# --- Version (from ABOUT.md) ------------------------------------------------
+VERSION_RE='^_Version [0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]* - [0-9A-Za-z]*_$'
+version_line="$(grep -E "$VERSION_RE" ABOUT.md || true)"
+if [ -z "$version_line" ] || [ "$(printf '%s\n' "$version_line" | wc -l)" -ne 1 ]; then
+	echo "ABOUT.md must contain exactly one line like: _Version 0.1.0 - 14Nov2026_" >&2
+	exit 1
+fi
+VERSION="$(printf '%s\n' "$version_line" | sed -E 's/^_Version ([0-9.]+) - .*/\1/')"
+
+if [ "$PUSH" = 1 ]; then
+	major="${VERSION%%.*}"; rest="${VERSION#*.}"
+	minor="${rest%%.*}";    patch="${rest#*.}"
+	VERSION="${major}.${minor}.$((patch + 1))"
+	day="$(date +%d)"; day="${day#0}"
+	DATE="${day}$(LC_ALL=C date +%b%Y)"          # e.g. 15Nov2026
+
+	cp ABOUT.md ABOUT.md.publish-bak
+	restore_about() {
+		if [ -f ABOUT.md.publish-bak ]; then
+			mv ABOUT.md.publish-bak ABOUT.md
+			echo "Build failed: ABOUT.md restored (version not bumped)" >&2
+		fi
+	}
+	trap restore_about EXIT
+	trap 'exit 130' INT TERM
+	sed -E "s/^_Version [0-9.]+ - [0-9A-Za-z]*_\$/_Version ${VERSION} - ${DATE}_/" \
+		ABOUT.md.publish-bak > ABOUT.md
+	echo "Version ${VERSION} - ${DATE} (written to ABOUT.md)"
+fi
 
 # Multi-platform builds need a docker-container builder (the default
 # "docker" driver can only build for one platform at a time).
@@ -50,7 +87,7 @@ if [ "$PUSH" = 1 ]; then
 	echo "Building ${PLATFORMS} and pushing ${REPO}:latest and ${REPO}:${VERSION}"
 else
 	output=""   # build only; result stays in the builder cache
-	echo "Test build of ${PLATFORMS} (not pushing)"
+	echo "Test build of ${PLATFORMS}, version ${VERSION} (not pushing)"
 fi
 
 cache=""
@@ -72,7 +109,8 @@ docker buildx build \
 	.
 
 if [ "$PUSH" = 1 ]; then
+	rm -f ABOUT.md.publish-bak      # success: keep the bumped ABOUT.md
 	echo "Published ${REPO}:latest and ${REPO}:${VERSION}"
-	echo "On the board: put NETTEST_IMAGE=${DOCKERHUB_USER}/${IMAGE_NAME}:latest in .env, then"
-	echo "  docker compose pull && docker compose up -d"
+	echo "Commit the new version:  git commit -m 'Release ${VERSION}' ABOUT.md"
+	echo "On the board:            docker compose pull && docker compose up -d"
 fi

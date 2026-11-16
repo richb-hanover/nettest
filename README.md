@@ -19,22 +19,33 @@ It provides these services:
 | **About page** | — | 80/tcp | Shows `ABOUT.md` as a formatted web page |
 | **mDNS** (avahi-daemon) | 0.8 | 5353/udp | Advertises `nettest.local` and the web pages via Bonjour |
 
-All seven run from a single image, **`nettest-portable`**, each in its own container.
-You can build the image on the board or pull it from Docker Hub
-(`richbhanover/nettest-portable`).
-That way each server has its own logs and restarts independently.
+All seven run from a single image, **`richbhanover/nettest-portable`** on
+Docker Hub, each in its own container, so each server has its own logs and
+restarts independently. The image contains everything, including the About
+page's `ABOUT.md`, so a board needs only `docker-compose.yml`, not this git
+repository.
 
 ## Installation
 
 Start with a small Linux computer (Raspberry Pi, Odroid,
-etc.) with a fresh OS installation.
+etc.) with a fresh OS installation and Docker (see
+[Install Docker](#1-install-docker-on-armbian-268--ubuntu-2604)).
 Then run these commands:
 
 ```bash
-git clone https://github.com/richb-hanover/nettest-portable.git
-cd nettest-portable
+mkdir nettest-portable && cd nettest-portable
+curl -fsSLO https://raw.githubusercontent.com/richb-hanover/nettest-portable/main/docker-compose.yml
 docker compose pull && docker compose up -d
 ```
+
+To update the board to the latest release, run this in the same directory:
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+Fetch `docker-compose.yml` again (the `curl` line) only when the release
+notes say it changed.
 
 ## Files
 
@@ -44,30 +55,29 @@ docker compose pull && docker compose up -d
 | `docker-compose.yml` | One service per server, all on host networking, `restart: unless-stopped` |
 | `about/server.mjs`, `about/package.json` | The port 80 server that renders `ABOUT.md` |
 | `mdns/start.sh` | Writes the Avahi config from environment variables and starts `avahi-daemon` |
-| `ABOUT.md` | *(you create this)* The content shown on port 80 |
-| `publish.sh` | Builds the image for arm64 + amd64 and pushes it to Docker Hub |
-| `.env.example` | Template for `.env` (`DOCKERHUB_USER`, `NETTEST_IMAGE`) |
-| `.dockerignore` | Sends only `about/` and `mdns/` to the build (everything else is fetched from GitHub/apt) |
+| `ABOUT.md` | The content shown on port 80, built into the image. Holds the release version line |
+| `publish.sh` | Bumps the version in `ABOUT.md`, builds the image for arm64 + amd64 and pushes it to Docker Hub |
+| `.env.example` | Template for `.env` (`DOCKERHUB_USER`, `NETTEST_IMAGE`); optional |
+| `.dockerignore` | Sends only `ABOUT.md`, `about/` and `mdns/` to the build (everything else is fetched from GitHub/apt) |
 
 ## The About page (port 80)
 
-The `about` service serves `ABOUT.md` (from this directory) at `http://BOX/`.
-Use it to describe the box: what it is, who owns it, and how to run the tests.
+The `about` service serves `ABOUT.md` at `http://BOX/`. It describes the
+box: what it is, how to install it, and how to run the tests.
 
-- Write `ABOUT.md` in normal GitHub-flavored Markdown: headings, tables,
+- `ABOUT.md` is **built into the image** (at `/opt/about/ABOUT.md`). To
+  change the page, edit `ABOUT.md` in this repository and publish a new
+  release (`./publish.sh`); boards pick it up with `docker compose pull &&
+  docker compose up -d`.
+- It's written in GitHub-flavored Markdown: headings, tables,
   code blocks, block quotes, task lists, links and images (by absolute URL).
 - The page uses clean, GitHub-like styling. It follows the browser's
   light/dark preference and fits phone screens.
 - The page title comes from the file's first `# Heading`.
-- The file is read on every request, so edits appear on the next browser
-  reload, with no restart or rebuild.
-- `http://BOX/ABOUT.md` returns the raw Markdown.
-- If `ABOUT.md` doesn't exist yet, the page says so (HTTP 503) instead of failing.
-
-This directory is mounted read-only into the container at `/srv/about`. It's
-mounted as a directory rather than as the single file so that editors that
-save by replacing the file still work. Only `ABOUT.md` is ever served; every
-other path returns 404.
+- `http://BOX/ABOUT.md` returns the raw Markdown. Every other path except
+  `/` and `/index.html` returns 404.
+- The file is read once when the container starts. If it's missing, the
+  `about` container exits with an error in `docker compose logs about`.
 
 Port 80 is privileged. The container starts as root with every capability
 dropped except binding low ports and switching user, and it switches to the
@@ -150,31 +160,31 @@ Check it with `docker compose version`.
 
 ## 2. Start it
 
-Copy this directory to the board. Then either pull the published image or
-build it locally.
-
-**Option A: pull from Docker Hub** (fast, no build on the board):
+**Option A: pull from Docker Hub** (recommended; fast, no build on the board).
+The board needs only `docker-compose.yml`:
 
 ```bash
-cd nettest-portable
-cp .env.example .env      # set NETTEST_IMAGE=<richbhanover/nettest-portable:latest
+mkdir nettest-portable && cd nettest-portable
+curl -fsSLO https://raw.githubusercontent.com/richb-hanover/nettest-portable/main/docker-compose.yml
 docker compose pull
 docker compose up -d
 ```
 
-On the board you only need `docker-compose.yml`, `.env` and your `ABOUT.md`
-(the About page reads it from this directory).
+`docker-compose.yml` uses `richbhanover/nettest-portable:latest` by default.
+To use another image or a specific release, create a `.env` next to it with
+e.g. `NETTEST_IMAGE=richbhanover/nettest-portable:0.1.1`.
 
-**Option B: build on the board:**
+**Option B: build on the board** (needs a git checkout):
 
 ```bash
+git clone https://github.com/richb-hanover/nettest-portable.git
 cd nettest-portable
+echo NETTEST_IMAGE=nettest-portable:latest > .env   # don't shadow the Docker Hub tag
 docker compose up -d --build
 ```
 
 The first build takes a while on a small ARM board (Cutie's `npm ci` and
-`npm run build` take the most time). Later builds are cached. Without `.env`,
-the locally built image is named `nettest-portable:latest`.
+`npm run build` take the most time). Later builds are cached.
 
 Because of `restart: unless-stopped`, the containers come back up after a
 reboot as long as the Docker service is enabled (`sudo systemctl enable docker`,
@@ -249,13 +259,32 @@ or comment the service out of `docker-compose.yml`.
 
 `publish.sh` builds the image for **linux/arm64 and linux/amd64** in one go and
 pushes it as `<DOCKERHUB_USER>/nettest-portable`, tagged both `latest` and
-with the build date (e.g. `20261114`):
+with the release version (e.g. `0.1.1`):
 
 ```bash
 docker login                               # once
 cp .env.example .env                       # set DOCKERHUB_USER
 ./publish.sh
+git commit -m "Release 0.1.1" ABOUT.md     # record the new version
 ```
+
+### Versions
+
+The release version is the line `_Version 0.1.0 - 14Nov2026_` in `ABOUT.md`,
+so it shows on the About page. Each `./publish.sh` that pushes:
+
+1. bumps the last number by one (`0.1.0` → `0.1.1`) and sets today's date
+   in that line,
+2. builds the image with that `ABOUT.md` inside it, and
+3. tags it `latest` and `0.1.1` (the version is also the image's
+   `org.opencontainers.image.version` label).
+
+If the build fails or is interrupted, `ABOUT.md` is restored and the version
+isn't used up. `PUSH=0` test builds don't change the version. To bump the
+minor or major number, edit the line by hand (e.g. to `0.2.0`) first; the
+next release then bumps that by one patch (`0.2.1`).
+
+Other options:
 
 - Run it on a fast machine (e.g. a Mac with Docker Desktop). The non-native
   architecture is built under emulation, which is slow but works.
@@ -272,7 +301,14 @@ cp .env.example .env                       # set DOCKERHUB_USER
 
 ## Updating
 
-To pull the latest Cutie and rebuild everything (including Ubuntu package updates):
+On a board that uses the Docker Hub image:
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+When building locally (Option B), to pull the latest Cutie and rebuild
+everything (including Ubuntu package updates):
 
 ```bash
 docker compose build --no-cache
@@ -337,10 +373,15 @@ The image was built (arm64) and the full stack was run under Docker Desktop.
 Each server was then exercised with its client from inside the image:
 netperf `TCP_STREAM`, iperf2 TCP, iperf3 TCP and UDP, `crusader test`,
 Cutie `GET /` (200), `GET /api/stats`, and loading the `@roamhq/wrtc` native
-module. The About server was tested both with no `ABOUT.md` (503 message page)
-and with a sample file (headings, table, code block, quote, task list). Edits
-to the file appeared on the next request, and the server ran as uid 999
-(`nettest`) after binding port 80. A full browser-to-Cutie WebRTC session across a real LAN has to be
+module. The About server serves the built-in `ABOUT.md`: `/` and
+`/index.html` return the rendered page (title from the first heading),
+`/ABOUT.md` the raw Markdown, other paths 404 and non-GET methods 405; with
+the file missing it exits with an error. It ran as uid 999 (`nettest`) after
+binding port 80. `docker-compose.yml` copied alone into an empty directory
+resolves every service to `richbhanover/nettest-portable:latest` with no
+bind mounts. `publish.sh`'s version bump was tested with a stub `docker`:
+`0.1.0` → `0.1.1` with today's date on success, `ABOUT.md` restored on a
+failed build, and no change for `PUSH=0`. A full browser-to-Cutie WebRTC session across a real LAN has to be
 checked on the board itself.
 
 The mDNS service started as `nettest.local` and switched to the `avahi` user.
