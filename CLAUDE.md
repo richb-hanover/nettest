@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working in this
 ## What this project is
 
 `nettest-portable` (GitHub: `richb-hanover/nettest-portable`, Docker Hub:
-`richbhanover/nettest-portable`) is a Docker setup that turns a small Linux board into a network test
+`richbhanover1/nettest-portable`) is a Docker setup that turns a small Linux board into a network test
 server you can drop onto any network. Everything is defined by a `Dockerfile` and
 a `docker-compose.yml` in this directory; user-facing documentation is `README.md`.
 
@@ -40,7 +40,7 @@ making changes.
 | Path | Purpose |
 | --- | --- |
 | `Dockerfile` | Multi-stage build: `cutie-build` (Node, builds Cutie from GitHub), `about-build` (installs `marked`, copies `ABOUT.md`), `crusader-fetch` (downloads the binary for `TARGETARCH`), then an `ubuntu:26.04` runtime |
-| `docker-compose.yml` | One shared image (`${NETTEST_IMAGE:-richbhanover/nettest-portable:latest}`), one service per server, defined via the `x-nettest` YAML anchor. The only file a board needs |
+| `docker-compose.yml` | One shared image (`${NETTEST_IMAGE:-richbhanover1/nettest-portable:latest}`), one service per server, defined via the `x-nettest` YAML anchor. The only file a board needs |
 | `about/server.mjs`, `about/package.json` | Port 80 server that renders the built-in `/opt/about/ABOUT.md` with `marked` |
 | `mdns/start.sh` | Generates `/etc/avahi/avahi-daemon.conf` + `_http._tcp` service files from env vars, then execs `avahi-daemon` |
 | `ABOUT.md` | **Owned by the user.** Content for the About page, built into the image. Holds the release version line `_Version X.Y.Z - DMonYYYY_` (only `publish.sh` changes it). Do not otherwise rewrite it unless asked. |
@@ -104,7 +104,7 @@ making changes.
 
 ```bash
 docker compose config -q              # validate the compose file
-docker compose build                  # build $NETTEST_IMAGE (default richbhanover/nettest-portable:latest)
+docker compose build                  # build $NETTEST_IMAGE (default richbhanover1/nettest-portable:latest)
 docker compose up -d --build          # build and start everything
 docker compose up -d about mdns       # start selected services
 docker compose ps

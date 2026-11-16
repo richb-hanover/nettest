@@ -19,7 +19,7 @@ x-nettest: &nettest
   # The published Docker Hub image. Set NETTEST_IMAGE (in .env) to use
   # another one. "build:" is only used by "docker compose build" in a git
   # checkout; "docker compose pull" just downloads the image.
-  image: ${NETTEST_IMAGE:-richbhanover/nettest-portable:latest}
+  image: ${NETTEST_IMAGE:-richbhanover1/nettest-portable:latest}
   build:
     context: .
     args:

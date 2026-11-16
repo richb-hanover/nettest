@@ -7,7 +7,7 @@ network, you avoid the latency, packet loss,
 and other vagaries of the wider internet.
 See the list of test services below.
 
-_Version 0.1.0 - 14Nov2026_
+_Version 0.1.1 - 16Nov2026_
 
 ## To build nettest-portable
 

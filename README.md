@@ -19,7 +19,7 @@ It provides these services:
 | **About page** | — | 80/tcp | Shows `ABOUT.md` as a formatted web page |
 | **mDNS** (avahi-daemon) | 0.8 | 5353/udp | Advertises `nettest.local` and the web pages via Bonjour |
 
-All seven run from a single image, **`richbhanover/nettest-portable`** on
+All seven run from a single image, **`richbhanover1/nettest-portable`** on
 Docker Hub, each in its own container, so each server has its own logs and
 restarts independently. The image contains everything, including the About
 page's `ABOUT.md`, so a board needs only `docker-compose.yml`, not this git
@@ -170,9 +170,9 @@ docker compose pull
 docker compose up -d
 ```
 
-`docker-compose.yml` uses `richbhanover/nettest-portable:latest` by default.
+`docker-compose.yml` uses `richbhanover1/nettest-portable:latest` by default.
 To use another image or a specific release, create a `.env` next to it with
-e.g. `NETTEST_IMAGE=richbhanover/nettest-portable:0.1.1`.
+e.g. `NETTEST_IMAGE=richbhanover1/nettest-portable:0.1.1`.
 
 **Option B: build on the board** (needs a git checkout):
 
@@ -378,7 +378,7 @@ module. The About server serves the built-in `ABOUT.md`: `/` and
 `/ABOUT.md` the raw Markdown, other paths 404 and non-GET methods 405; with
 the file missing it exits with an error. It ran as uid 999 (`nettest`) after
 binding port 80. `docker-compose.yml` copied alone into an empty directory
-resolves every service to `richbhanover/nettest-portable:latest` with no
+resolves every service to `richbhanover1/nettest-portable:latest` with no
 bind mounts. `publish.sh`'s version bump was tested with a stub `docker`:
 `0.1.0` → `0.1.1` with today's date on success, `ABOUT.md` restored on a
 failed build, and no change for `PUSH=0`. A full browser-to-Cutie WebRTC session across a real LAN has to be
