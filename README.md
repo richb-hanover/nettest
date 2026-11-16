@@ -1,9 +1,10 @@
 # nettest-portable: a network test server in Docker
 
-This Docker setup turns a small Linux board (Armbian 26.8 / Ubuntu 26.04, arm64)
+This Docker container turns a small Linux board
+computer (RPi, Odroid, etc.)
 into a network test server.
-You can put the box anywhere on a network and test
-against it. 
+You can put the box "near the center" of
+a network and test against it. 
 Because it is directly connected to your local
 network, you avoid the latency, packet loss,
 and other vagaries of the wider internet.
@@ -25,11 +26,14 @@ restarts independently. The image contains everything, including the About
 page's `ABOUT.md`, so a board needs only `docker-compose.yml`, not this git
 repository.
 
+See more at the
+[Github repo](https://github.com/richb-hanover/nettest-portable)
+for more information.
+
 ## Installation
 
-Start with a small Linux computer (Raspberry Pi, Odroid,
-etc.) with a fresh OS installation and Docker (see
-[Install Docker](#1-install-docker-on-armbian-268--ubuntu-2604)).
+Start with a small Linux computer (Raspberry Pi, Odroid, etc.)
+with a fresh OS installation and Docker.
 Then run these commands:
 
 ```bash
@@ -44,8 +48,7 @@ To update the board to the latest release, run this in the same directory:
 docker compose pull && docker compose up -d
 ```
 
-Fetch `docker-compose.yml` again (the `curl` line) only when the release
-notes say it changed.
+You only need to fetch `docker-compose.yml` again (the `curl` line) when the release notes say it changed.
 
 ## Files
 
@@ -74,6 +77,8 @@ box: what it is, how to install it, and how to run the tests.
 - The page uses clean, GitHub-like styling. It follows the browser's
   light/dark preference and fits phone screens.
 - The page title comes from the file's first `# Heading`.
+- Headings get GitHub-style ids, so in-page links such as
+  `[installed](#installing-nettest-portable)` work the same as on GitHub.
 - `http://BOX/ABOUT.md` returns the raw Markdown. Every other path except
   `/` and `/index.html` returns 404.
 - The file is read once when the container starts. If it's missing, the
@@ -139,92 +144,7 @@ Every service uses `network_mode: host`. Publishing a fixed list of ports
 With host networking the servers act like they were installed directly on the
 board. Docker's own port mapping isn't used at all.
 
-## 1. Install Docker on Armbian 26.8 / Ubuntu 26.04
-
-Use either Ubuntu's packages:
-
-```bash
-sudo apt update
-sudo apt install -y docker.io docker-compose-v2 docker-buildx
-sudo usermod -aG docker $USER      # log out and back in afterwards
-```
-
-or Docker's upstream packages:
-
-```bash
-curl -fsSL https://get.docker.com | sudo sh
-sudo usermod -aG docker $USER
-```
-
-Check it with `docker compose version`.
-
-## 2. Start it
-
-**Option A: pull from Docker Hub** (recommended; fast, no build on the board).
-The board needs only `docker-compose.yml`:
-
-```bash
-mkdir nettest-portable && cd nettest-portable
-curl -fsSLO https://raw.githubusercontent.com/richb-hanover/nettest-portable/main/docker-compose.yml
-docker compose pull
-docker compose up -d
-```
-
-`docker-compose.yml` uses `richbhanover1/nettest-portable:latest` by default.
-To use another image or a specific release, create a `.env` next to it with
-e.g. `NETTEST_IMAGE=richbhanover1/nettest-portable:0.1.1`.
-
-**Option B: build on the board** (needs a git checkout):
-
-```bash
-git clone https://github.com/richb-hanover/nettest-portable.git
-cd nettest-portable
-echo NETTEST_IMAGE=nettest-portable:latest > .env   # don't shadow the Docker Hub tag
-docker compose up -d --build
-```
-
-The first build takes a while on a small ARM board (Cutie's `npm ci` and
-`npm run build` take the most time). Later builds are cached.
-
-Because of `restart: unless-stopped`, the containers come back up after a
-reboot as long as the Docker service is enabled (`sudo systemctl enable docker`,
-which is the default).
-
-Check that everything is up:
-
-```bash
-docker compose ps
-docker compose logs -f            # all servers
-docker compose logs -f cutie      # just one
-```
-
-## 3. Use it
-
-Replace `BOX` with `nettest.local`, or with the board's IP address.
-
-```bash
-# netperf
-netperf -H BOX -t TCP_STREAM -l 10
-netperf -H BOX -t TCP_RR -l 10
-
-# iperf (v2)
-iperf -c BOX -t 10
-
-# iperf3
-iperf3 -c BOX -t 10            # upload
-iperf3 -c BOX -t 10 -R         # download
-iperf3 -c BOX -u -b 10M -t 10  # UDP loss/jitter
-
-# Crusader (CLI client, or point the Crusader GUI at BOX)
-crusader test BOX
-```
-
-**Cutie:** open `http://BOX:4173` in a browser and click **Start**.
-
-**About page:** open `http://BOX/`.
-Running statistics are at `http://BOX:4173/api/stats`.
-
-## Configuration
+## Configuration for the Dockerfile
 
 ### Build arguments (in `docker-compose.yml` under `x-nettest.build.args`)
 
@@ -270,11 +190,10 @@ git commit -m "Release 0.1.1" ABOUT.md     # record the new version
 
 ### Versions
 
-The release version is the line `_Version 0.1.0 - 14Nov2026_` in `ABOUT.md`,
+The release version is in `ABOUT.md`,
 so it shows on the About page. Each `./publish.sh` that pushes:
 
-1. bumps the last number by one (`0.1.0` → `0.1.1`) and sets today's date
-   in that line,
+1. bumps the last number by one (`0.1.0` → `0.1.1`) and sets today's date in that line,
 2. builds the image with that `ABOUT.md` inside it, and
 3. tags it `latest` and `0.1.1` (the version is also the image's
    `org.opencontainers.image.version` label).
@@ -306,17 +225,6 @@ On a board that uses the Docker Hub image:
 ```bash
 docker compose pull && docker compose up -d
 ```
-
-When building locally (Option B), to pull the latest Cutie and rebuild
-everything (including Ubuntu package updates):
-
-```bash
-docker compose build --no-cache
-docker compose up -d
-```
-
-To move to a newer Crusader, change `CRUSADER_VERSION` and run
-`docker compose up -d --build`.
 
 ## Firewall
 

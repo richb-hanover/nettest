@@ -23,6 +23,28 @@ const RUN_AS = process.env.RUN_AS || 'nettest';
 
 marked.setOptions({ gfm: true, breaks: false });
 
+// Give headings GitHub-style ids ("## Installing nettest-portable" ->
+// id="installing-nettest-portable") so in-page links like
+// [installed](#installing-nettest-portable) work here just as on GitHub.
+// The page is rendered once, so one set of used slugs is enough.
+const usedSlugs = new Map();
+marked.use({
+	renderer: {
+		heading({ tokens, depth, text }) {
+			const base = text
+				.toLowerCase()
+				.replace(/<[^>]*>/g, '')
+				.replace(/[^\p{L}\p{N}\s_-]/gu, '')
+				.trim()
+				.replace(/\s/g, '-');
+			const n = usedSlugs.get(base) ?? 0;
+			usedSlugs.set(base, n + 1);
+			const id = n ? `${base}-${n}` : base;
+			return `<h${depth} id="${id}">${this.parser.parseInline(tokens)}</h${depth}>\n`;
+		},
+	},
+});
+
 const escapeHtml = (s) =>
 	s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 

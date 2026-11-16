@@ -94,7 +94,8 @@ making changes.
   `/index.html` (rendered HTML) and `/ABOUT.md` (raw) are served; everything
   else returns 404. Styling is
   inline GitHub-like CSS with light/dark support and a responsive layout; the
-  page `<title>` comes from the first `# Heading`.
+  page `<title>` comes from the first `# Heading`; headings get GitHub-style
+  `id`s (custom `marked` renderer) so `#anchor` links work.
 - **mDNS:** configured by `MDNS_NAME` (default `nettest`), `MDNS_INTERFACES`,
   `MDNS_ABOUT_PORT`, `MDNS_CUTIE_PORT`. D-Bus is disabled. Only one mDNS
   responder may run per host, so the README tells users to disable the host's
